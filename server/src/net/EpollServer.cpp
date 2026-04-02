@@ -126,7 +126,7 @@ void EpollServer::bossLoop() {
   }
 }
 
-void EpollServer::enqueueRaw(int fd, const std::string& data) {
+void EpollServer::enqueueRaw(int fd, std::string data) {
   std::lock_guard<std::mutex> lk(connMtx_);
   auto it = conns_.find(fd);
   if (it == conns_.end()) return;

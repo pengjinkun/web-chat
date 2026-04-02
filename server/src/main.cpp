@@ -10,6 +10,8 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <cstdint>
+
 
 static std::atomic<bool> gStop{false};
 static EpollServer* gServer = nullptr;

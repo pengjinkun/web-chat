@@ -36,7 +36,7 @@ class EpollServer {
   void workerLoop();
   void closeClient(int fd);
   void flushOut(int fd);
-  void enqueueRaw(int fd, std::vector<uint8_t> data);
+  void enqueueRaw(int fd, std::string data);
 
   ChatHandler& chat_;
 

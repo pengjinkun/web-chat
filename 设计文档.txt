@@ -1,0 +1,310 @@
+一、系统整体架构
+前端(React) ←→ 网关层(WebSocket) ←→ 服务端(C++17+Epoll仿Netty) ←→ 存储(MySQL+Redis)
+通信协议：WebSocket（长连接，实时聊天必备）
+服务端模型：Reactor 模型（Epoll + 多线程，仿 Netty 主从多线程模式）
+存储分工：
+MySQL：持久化用户数据、好友关系、群聊信息、聊天记录
+Redis：缓存在线状态、未读消息、好友推荐、会话红点、热点群聊
+二、前端 React 详细设计（交互 + UI + 功能）
+1. 页面布局（严格遵循你的 UI 规范）
+┌─────────────────┬───────────────────────┬─────────────────┐
+│ 左侧栏（固定）  │ 中间聊天区             │ 右侧活跃用户区  │
+│ ┌─────────────┐ │ ┌───────────────────┐ │ ┌─────────────┐ │
+│ │ 好友搜索栏  │ │ 对话标题/离线提示   │ │ 在线活跃用户 │ │
+│ │ 好友列表(带红点)││ 聊天记录(最多200条)  │ │ 列表+添加好友按钮│ │
+│ └─────────────┘ │ └───────────────────┘ │ └─────────────┘ │
+│ ┌─────────────┐ │                       │                 │
+│ │ 群聊搜索栏  │ │ 输入框+发送按钮       │                 │
+│ │ 群聊列表(带红点)││                      │                 │
+│ └─────────────┘ │                       │                 │
+└─────────────────┴───────────────────────┴─────────────────┘
+
+2. 核心组件划分
+表格
+组件名	功能
+ChatApp	根组件，管理全局状态（当前会话、在线状态、红点）
+LeftSidebar	左侧栏（好友 + 群聊搜索、列表、红点）
+FriendList	好友列表（搜索、排序、红点、点击切换会话）
+GroupList	群聊列表（搜索、排序、红点、点击切换会话）
+ChatWindow	中间聊天窗口（历史记录、离线消息、输入框）
+RightActiveUser	右侧活跃用户（推荐在线最久用户、添加好友）
+MessageItem	消息气泡（普通消息 / 系统事件消息）
+Badge	红点组件（未读计数 + 显示隐藏逻辑）
+3. 前端核心交互细节
+（1）会话切换逻辑
+点击好友 / 群聊 → 清空当前会话红点 → 加载该会话最多 200 条缓存记录
+优先加载离线消息 → 再加载在线历史消息
+切换会话时，自动滚动到最新消息底部
+当前打开的会话，新消息直接插入，不显示红点
+（2）消息缓存与限制
+本地内存缓存：每个会话最多存储200 条消息，超过后删除最早的消息
+滚动加载：如需查看更早消息，请求服务端分页加载（可选扩展）
+离线消息：登录后自动拉取，合并到聊天记录顶部
+（3）红点（Badge）精确规则
+表格
+触发场景	红点位置	消失条件
+收到好友申请 / 同意好友	好友列表对应项	打开好友申请 / 打开好友对话
+收到好友新消息	好友对话右上角	打开该好友对话
+加入群聊 / 被拉进群聊	群聊列表对应项	打开群聊对话
+收到群聊新消息	群聊对话右上角	打开该群聊对话
+当前会话已打开	不显示红点	-
+（4）系统事件消息展示
+以下操作自动生成灰色系统提示消息，插入聊天窗口：
+添加好友成功：你和XXX已成为好友，可以开始聊天啦
+创建群聊：你创建了群聊【XXX】
+加入群聊：XXX加入了群聊 / 你加入了群聊【XXX】
+好友申请通过：XXX已同意你的好友申请
+（5）右侧活跃用户推荐
+排序规则：在线时长从长到短
+展示字段：用户名 + 在线时长 + 添加好友按钮
+已成为好友的用户：按钮置灰，不可点击
+实时更新：每 30 秒刷新一次列表
+（6）搜索功能
+好友搜索：支持用户名模糊搜索，实时过滤列表
+群聊搜索：支持群名称 / 群 ID 模糊搜索，实时过滤列表
+4. 前端状态管理
+使用 React Context + useReducer 管理全局状态：
+全局状态：用户信息、在线状态、当前会话 ID、未读红点列表、好友 / 群聊列表、聊天记录
+实时更新：WebSocket 接收消息 → 自动更新状态 → 触发 UI 渲染
+
+三、服务端 C++ 架构设计（Linux+Epoll 仿 Netty）
+1. 核心技术栈
+C++17、CMake 编译、Linux 环境
+网络：Epoll + Reactor 主从多线程模型（完全仿 Netty）
+存储：MySQL8.0、Redis6.0
+通信：WebSocket 协议（兼容前端）、JSON 数据格式
+
+2. 网络层实现（Epoll 仿 Netty）
+（1）线程模型
+主线程（BossGroup）：1 个线程，负责监听端口，接收新连接
+工作线程（WorkerGroup）：CPU 核心数 * 2 线程，负责读写数据、编解码、业务处理
+业务线程池：独立线程池，处理数据库、Redis 操作（防止阻塞 IO 线程）
+（2）核心组件
+EpollPoller：Epoll 封装，事件监听
+Channel：文件描述符封装，绑定读写事件回调
+EventLoop：事件循环，每个线程一个 Loop
+WebSocketCodec：WebSocket 编解码器（处理握手、数据帧）
+HandlerChain：责任链模式，仿 Netty 的 ChannelPipeline
+
+3. 服务端核心接口（WebSocket 消息协议）
+统一格式：{"type":"xxx", "data":{}, "timestamp":123456}
+表格
+类型	功能
+user.register	用户注册
+user.login	用户登录
+friend.search	搜索好友
+friend.add	发送好友申请
+friend.agree	同意好友申请
+friend.recommend	获取推荐好友（在线最久）
+group.create	创建群聊
+group.join	加入群聊
+group.search	搜索群聊
+chat.p2p	好友单聊
+chat.group	群聊
+msg.offline	获取离线消息
+
+四、数据库设计（MySQL+Redis）
+第一部分：MySQL 数据表（持久化核心数据）
+共7 张核心表，满足所有业务需求，包含索引优化。
+1. 用户表（user）
+使用数据库chat_db
+存储用户基础信息
+sql
+CREATE TABLE `user` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
+  `username` VARCHAR(32) NOT NULL UNIQUE COMMENT '用户名',
+  `password` VARCHAR(64) NOT NULL COMMENT '密码（MD5加密）',
+  `nickname` VARCHAR(32) DEFAULT '' COMMENT '昵称',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+2. 好友关系表（friend_relation）
+存储双向好友关系
+sql
+CREATE TABLE `friend_relation` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `user_id` BIGINT NOT NULL COMMENT '用户ID',
+  `friend_id` BIGINT NOT NULL COMMENT '好友ID',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1-正常 2-删除',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_friend (user_id, friend_id),
+  INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+3. 好友申请表（friend_apply）
+存储好友申请记录
+sql
+CREATE TABLE `friend_apply` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `from_uid` BIGINT NOT NULL COMMENT '申请人ID',
+  `to_uid` BIGINT NOT NULL COMMENT '被申请人ID',
+  `status` TINYINT DEFAULT 0 COMMENT '0-待处理 1-同意 2-拒绝',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_to_uid (to_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+4. 群聊表（group）
+sql
+CREATE TABLE `group` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '群ID',
+  `group_name` VARCHAR(64) NOT NULL COMMENT '群名称',
+  `owner_id` BIGINT NOT NULL COMMENT '群主ID',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_group_name (group_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+5. 群成员表（group_member）
+sql
+CREATE TABLE `group_member` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `group_id` BIGINT NOT NULL,
+  `user_id` BIGINT NOT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_group_user (group_id, user_id),
+  INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+6. 单聊消息表（p2p_message）
+sql
+CREATE TABLE `p2p_message` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `from_uid` BIGINT NOT NULL,
+  `to_uid` BIGINT NOT NULL,
+  `content` TEXT NOT NULL COMMENT '消息内容',
+  `msg_type` TINYINT DEFAULT 1 COMMENT '1-普通消息 2-系统事件',
+  `is_read` TINYINT DEFAULT 0 COMMENT '0-未读 1-已读',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_from_to (from_uid, to_uid),
+  INDEX idx_to_uid (to_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+7. 群聊消息表（group_message）
+sql
+CREATE TABLE `group_message` (
+  `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
+  `group_id` BIGINT NOT NULL,
+  `from_uid` BIGINT NOT NULL,
+  `content` TEXT NOT NULL,
+  `msg_type` TINYINT DEFAULT 1 COMMENT '1-普通消息 2-系统事件',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_group_id (group_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+第二部分：Redis 键设计（缓存 + 实时数据）
+专门处理在线状态、未读红点、离线消息、好友推荐等高频数据
+表格
+Key 格式	类型	作用
+user:online:{uid}	String	用户在线状态（1 - 在线 0 - 离线）
+user:online_time:{uid}	String	用户在线时长（秒），用于推荐好友
+online_users	SortedSet	所有在线用户（score = 在线时长，推荐好友用）
+unread:p2p:{uid}:{fid}	String	单聊未读消息数（红点用）
+unread:group:{uid}:{gid}	String	群聊未读消息数（红点用）
+offline:msg:{uid}	List	用户离线消息队列
+friend:list:{uid}	Set	好友 ID 集合（快速判断是否好友）
+group:list:{uid}	Set	群聊 ID 集合
+
+五、核心业务逻辑实现
+1. 好友推荐（在线时间最长）
+服务端定时：每 10 秒更新所有在线用户的在线时长到 Redis SortedSet
+前端请求：服务端从 online_users 取 score 最高的前 20 个用户
+过滤：排除自己、已添加的好友，返回给前端
+2. 离线消息 + 未读红点
+用户不在线：消息存入 offline:msg:{uid} + 未读计数 + 1
+用户登录：拉取离线消息 → 发送给前端 → 清空离线队列
+打开会话：发送已读指令 → 服务端清空对应未读计数 → 红点消失
+3. 聊天记录缓存限制
+服务端查询消息：LIMIT 200，只返回最新 200 条
+前端本地缓存：超过 200 条自动删除最早数据，保证性能
+4. 系统事件消息
+添加好友 / 创建群聊 / 加入群聊时，服务端自动生成系统类型消息，存入数据库并推送给对端，前端展示为灰色提示。
+
+六、前端红点状态同步方案（核心细节）
+登录初始化：拉取所有未读消息数，渲染红点
+实时推送：WebSocket 收到新消息 → 更新对应会话未读计数
+会话打开：发送已读请求 → 服务端清零未读 → 前端隐藏红点
+切换会话：自动隐藏上一个会话的红点，加载当前会话数据
+
+
+注册界面（Register）
+好友申请列表 & 处理界面（FriendApplyList）
+包含：UI 布局、交互逻辑、前端 React 组件结构、接口协议、红点联动、数据库关联。
+一、注册界面 Register
+1. 界面定位
+独立路由页面，未登录时访问系统自动跳转
+简洁表单 + 登录入口跳转
+2. UI 布局（居中卡片式）
+      [系统名称：Web Chat]
+  ┌───────────────────────┐
+  │      用户注册          │
+  ├───────────────────────┤
+  │ 用户名：[           ]  │
+  │                         │
+  │ 密码：   [           ]  │
+  │                         │
+  │ 确认密码：[           ] │
+  │                         │
+  │  [ 注 册 ]              │
+  │                         │
+  │ 已有账号？前往登录 >     │
+  └───────────────────────┘
+3. 前端交互规则
+表单校验
+用户名：3~16 位字母 / 数字，不可重复
+密码：6~16 位
+两次密码必须一致
+注册成功
+自动跳转到登录页 / 直接登录进入主页
+注册失败提示
+用户名已存在
+格式错误
+服务异常
+4. 数据库关联
+写入 user 表
+密码建议存 MD5/SHA256，不要明文
+
+二、好友申请列表 & 处理界面 FriendApplyList
+1. 界面定位
+入口：左侧好友列表顶部搜索栏旁 → 小铃铛图标（带红点）
+点击弹出抽屉 / 跳转新页面，展示所有收到的好友申请
+2. UI 布局
+plaintext
+        好友申请列表
+
+  ┌───────────────────────────┐
+  │  [x] 关闭      全部已读    │
+  ├───────────────────────────┤
+  │ ┌───────────────────────┐ │
+  │ │ 李四 请求添加你为好友  │ │
+  │ │       [同意] [拒绝]    │ │
+  │ └───────────────────────┘ │
+  │                             │
+  │ ┌───────────────────────┐ │
+  │ │ 王五 请求添加你为好友  │ │
+  │ │       [同意] [拒绝]    │ │
+  │ └───────────────────────┘ │
+  └───────────────────────────┘
+3. 核心功能
+展示所有 “待处理” 申请
+同意：建立双向好友关系 + 发系统消息 + 消除红点
+拒绝：仅修改申请状态，不建立关系
+申请状态：0 待处理 / 1 同意 / 2 拒绝
+红点联动
+有status=0申请 → 铃铛图标显示红点
+进入申请列表 → 红点消失
+处理完成 → 列表该项变灰 / 移除
+4. 前端交互细节
+列表按 申请时间倒序 展示
+已同意 / 拒绝的项可置灰，不可重复操作
+处理成功后，好友列表自动刷新
+同意后自动在对话窗口生成系统消息：
+你和 xxx 已成为好友，可以开始聊天了
+
+6. 红点联动规则（关键）
+全局铃铛红点：friend_apply 表中 to_uid=? and status=0 数量 > 0 则显示
+进入申请页面 → 前端发送 friend.apply.read → 服务端标记已读
+打开后无论是否处理，红点立即消失
+8. 处理成功后触发的系统消息
+同意好友后，服务端自动向双方对话插入一条系统消息：你和 lisi 已成为好友",并触发好友列表红点。
+
+三、两个界面与主系统的联动
+注册成功 → 登录 → 进入主聊天界面
+收到好友申请 → 铃铛红点提示 → 进入处理页
+处理完成 → 好友列表刷新 → 对话窗口生成系统消息
+红点统一由 Redis 未读计数驱动
+apply:unread:{uid} 控制铃铛红点
+unread:p2p:{uid}:{fid} 控制对话红点

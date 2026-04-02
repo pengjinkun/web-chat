@@ -1,0 +1,45 @@
+.wc-msg {
+  margin: 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wc-msg--system {
+  align-items: center;
+  color: #8b9199;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.wc-msg--row {
+  max-width: 78%;
+}
+
+.wc-msg--mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.wc-msg--row:not(.wc-msg--mine) {
+  align-self: flex-start;
+}
+
+.wc-msg__who {
+  font-size: 0.7rem;
+  color: #8b9199;
+  margin-bottom: 0.15rem;
+}
+
+.wc-msg__bubble {
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  background: #2a3140;
+  color: #e8eaed;
+}
+
+.wc-msg--mine .wc-msg__bubble {
+  background: linear-gradient(135deg, #3d6fd8, #2c52a8);
+  color: #fff;
+}

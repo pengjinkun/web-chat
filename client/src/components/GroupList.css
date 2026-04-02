@@ -1,0 +1,25 @@
+.wc-group-actions {
+  margin-bottom: 0.5rem;
+}
+
+.wc-group-actions--row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wc-join-inline {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.wc-create-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.wc-row__meta {
+  font-size: 0.75rem;
+  color: #6b7280;
+}

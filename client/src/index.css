@@ -1,0 +1,101 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #0f1419;
+  color: #e8eaed;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wc-input {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #2a3140;
+  background: #1e2633;
+  color: #e8eaed;
+  font: inherit;
+}
+
+.wc-input:focus {
+  outline: none;
+  border-color: #3d6fd8;
+}
+
+.wc-input--sm {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.wc-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.wc-btn--primary {
+  background: linear-gradient(135deg, #3d6fd8, #2c52a8);
+  color: #fff;
+}
+
+.wc-btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.wc-btn--secondary {
+  background: #2a3140;
+  color: #e8eaed;
+}
+
+.wc-btn--secondary:hover {
+  background: #343c4d;
+}
+
+.wc-btn--ghost {
+  background: transparent;
+  color: #9aa3af;
+}
+
+.wc-btn--ghost:hover {
+  background: #252b36;
+  color: #e8eaed;
+}
+
+.wc-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  max-width: min(90vw, 400px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.wc-toast--err {
+  background: #3d2020;
+  color: #f5a0a0;
+  border: 1px solid #6b3030;
+}
+
+.wc-toast--ok {
+  background: #1e3328;
+  color: #9dffb4;
+  border: 1px solid #2d5c40;
+}

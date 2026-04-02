@@ -1,0 +1,36 @@
+.wc-left {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-right: 1px solid #2a3140;
+  background: #161b22;
+}
+
+.wc-left__tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.65rem;
+  border-bottom: 1px solid #2a3140;
+}
+
+.wc-tab {
+  flex: 1;
+  padding: 0.45rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9aa3af;
+  cursor: pointer;
+  font: inherit;
+}
+
+.wc-tab--on {
+  background: #2a3140;
+  color: #e8eaed;
+}
+
+.wc-left__body {
+  flex: 1;
+  overflow: auto;
+  padding: 0.65rem;
+}
